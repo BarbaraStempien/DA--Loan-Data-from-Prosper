@@ -1,6 +1,6 @@
 # Analyzing the Loan Data from Prosper
 
-https://img.shields.io/badge/Status-Work%20in%20progress-orange.svg
+[![Status](https://img.shields.io/badge/Status-Work%20in%20progress-orange.svg)](https://github.com/BarbaraStempien/DA--Loan-Data-from-Prosper)
 
 ## Table of Contents
 
