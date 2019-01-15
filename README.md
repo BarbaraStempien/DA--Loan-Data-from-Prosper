@@ -1,5 +1,7 @@
 # Analyzing the Loan Data from Prosper
 
+https://img.shields.io/badge/Status-Work%20in%20progress-orange.svg
+
 ## Table of Contents
 
 * [Description](#description)
