@@ -682,17 +682,45 @@ The lender yield is the interest rate minus the expected fee payments. It is the
 summary(df)
 ```
 
+
+Prosper loan data set contains 113,937 loans with 81 variables on each loan. 
+I have selected 29 variables from the original dataset for my analysis.
+
+
 ### What is/are the main feature(s) of interest in your dataset?
+
+The most interesting for me is to understand what is the profile of typical peer-to-peer borrower, 
+in terms of demographics, credit characteristics and other factors.
 
 
 ### What other features in the dataset do you think will help support your \
 investigation into your feature(s) of interest?
 
+Features like lender yield or number of investors might be helpful to understand which features of the borrower affect the increase of investors' interest, and therefore are desirable, and which are not. 
+
 ### Did you create any new variables from existing variables in the dataset?
+
+Yes, I created new Listing Category variable, with textual values, based on the original ListingCategory..numeric. variable.           
 
 ### Of the features you investigated, were there any unusual distributions? \
 Did you perform any operations on the data to tidy, adjust, or change the form \
 of the data? If so, why did you do this?
+
+I have :
+* grouped various Past Due statuses of the Loan Status variable into one Past Due status, and converted this variable into factor with 7 levels;
+* converted Listing Creation Date variable to date format;
+* converted Term to ordered factor with 3 levels;
+* converted Closed Date variable to date format;
+* converted Prosper Rating to ordered factor with 8 levels;
+* converted Prosper Score to ordered factor with 12 levels;
+* converted State abbreviation to full name and added as new variable;
+* converted Is Borrower Homeowner to logical type;
+* replaced NA in Occupation with Not Available;
+* replaced NA in Employment Status with Not Available;
+
+These changes have been performed to ease plotting.
+ 
+While building different plots, I have also grouped variables and subset dataset whenever needed.
 
 
 # Bivariate Plots Section
