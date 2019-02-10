@@ -1,68 +1,689 @@
-TITLE by YOUR_NAME_HERE
+Exploratory Data Analysis of Loan Data from Prosper
+_Barbara Stempien_
 ========================================================
 
-> **Tip**: You will see quoted sections like this throughout the template to
-help you construct your report. Make sure that you remove these notes before
-you finish and submit your project!
+Prosper Marketplace is America's first peer-to-peer lending marketplace, with over \$7 billion in funded loans. Borrowers request personal loans on Prosper and investors (individual or institutional) can fund anywhere from \$2,000 to \$35,000 per loan request. Investors can consider borrowers’ credit scores, ratings, and histories and the category of the loan. Prosper handles the servicing of the loan and collects and distributes borrower payments and interest back to the loan investors.
 
-> **Tip**: One of the requirements of this project is that your code follows
-good formatting techniques, including limiting your lines to 80 characters or
-less. If you're using RStudio, go into Preferences \> Code \> Display to set up
-a margin line to help you keep track of this guideline!
+Prosper verifies borrowers' identities and select personal data before funding loans and manages all stages of loan servicing. Prosper's unsecured personal loans are fully amortized over a period of three or five years, with no pre-payment penalties. Prosper generates revenue by collecting a one-time fee on funded loans from borrowers and assessing an annual loan servicing fee to investors.
 
-```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
-# Load all of the packages that you end up using in your analysis in this code
-# chunk.
+Prosper publishes performance statistics on its website and all market data is available to the public for analysis. Prosper loan data set contains 113,937 loans with 81 variables on each loan, 
+including loan amount, borrower rate (or interest rate), current loan status, 
+borrower income, borrower employment status, borrower credit history, and 
+the latest payment information.
 
-# Notice that the parameter "echo" was set to FALSE for this code chunk. This
-# prevents the code from displaying in the knitted HTML output. You should set
-# echo=FALSE for all code chunks in your file, unless it makes sense for your
-# report to show the code that generated a particular plot.
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='plots/',
+                      echo=FALSE, warning=FALSE, message=FALSE)
+```
 
-# The other parameters for "message" and "warning" should also be set to FALSE
-# for other code chunks once you have verified that each plot comes out as you
-# want it to. This will clean up the flow of your report.
-
+```{r packages}
+# Load packages
 library(ggplot2)
+library(repr)
+library(ggthemes)
+library(dplyr)
+library(maps)
+library(mapdata)
+library(openintro)
+library(waffle)
+library(ggcorrplot)
+library(scales)
+library(ggpubr)
+library(gridExtra)
 ```
 
-```{r echo=FALSE, Load_the_Data}
-# Load the Data
-
+```{r Load_the_Data}
+# load the prosper loan dataset
+loan_dataset <- read.csv('data/prosperLoanData.csv', na.strings = c("", "NA"))
 ```
 
-> **Tip**: Before you create any plots, it is a good idea to provide a short
-introduction into the dataset that you are planning to explore. Replace this
-quoted text with that general information!
+```{r, Data Wrangling}
+
+# subset the dataframe to the following columns
+subset <- c("LoanStatus",
+            "ListingCreationDate",
+            "ClosedDate",
+            "ListingCategory..numeric.",
+            "Term",
+            "BorrowerRate",
+            "LoanOriginalAmount",
+            "MonthlyLoanPayment",
+            "BorrowerState",
+            "IsBorrowerHomeowner",  
+            "Occupation",
+            "EmploymentStatus",
+            "StatedMonthlyIncome",
+            "DebtToIncomeRatio",
+            "ProsperRating..Alpha.",
+            "ProsperScore",           
+            "OpenCreditLines",
+            "TotalCreditLinespast7years",
+            "OpenRevolvingAccounts",
+            "OpenRevolvingMonthlyPayment",
+            "CurrentDelinquencies",
+            "AmountDelinquent",
+            "DelinquenciesLast7Years",
+            "PublicRecordsLast10Years",
+            "RevolvingCreditBalance",
+            "BankcardUtilization",
+            "LenderYield",
+            "Investors"
+           )
+
+# subset dataframe
+df <- loan_dataset[subset]
+
+# replace NAs with 0
+df[is.na(df)] <- 0
+```
+``` {r ,Clean and Tidy dataset}
+
+# convert Loan Status to factor with 7 levels
+# https://stackoverflow.com/a/19410249/7382214
+levels(df$LoanStatus) <- list(Current = "Current",
+                              Completed = "Completed",
+                              "Charged Off" = "Chargedoff",
+                              Defaulted = "Defaulted",
+                              "Past Due" = c("Past Due (>120 days)",
+                                        "Past Due (1-15 days)",
+                                        "Past Due (16-30 days)",
+                                        "Past Due (31-60 days)",
+                                        "Past Due (61-90 days)",
+                                        "Past Due (91-120 days)"),
+                              "Final Payment" = "FinalPaymentInProgress",
+                              Cancelled = "Cancelled")
+
+# convert Listing Creation Date variable to date format
+df$ListingCreationDate <- as.Date(df$ListingCreationDate)
+
+# convert Term to ordered factor with 3 levels
+df$Term <- factor(df$Term, levels=c(12,36,60), ordered=TRUE)
+
+# convert Closed Date variable to date format
+df$ClosedDate <- as.Date(df$ClosedDate)
+
+# convert Prosper Rating to ordered factor with 8 levels
+df$ProsperRating..Alpha. <- factor(df$ProsperRating..Alpha., levels=c("HR", "E", "D", "C","B","A","AA"), ordered=TRUE)
+
+# convert Prosper Score to ordered factor with 12 levels
+df$ProsperScore <- factor(df$ProsperScore, levels=c(0,1,2,3,4,5,6,7,8,9,10,11), ordered=TRUE)
+
+# add column with Listing Category labels based on the documentation
+df$ListingCategory <- factor(df$ListingCategory..numeric., labels=c('Not Available',
+                                                                    'Debt Consolidation',
+                                                                    'Home Improvement',
+                                                                    'Business',
+                                                                    'Personal Loan',
+                                                                    'Student Use',
+                                                                    'Auto',
+                                                                    'Other',
+                                                                    'Baby&Adoption',
+                                                                    'Boat',
+                                                                    'Cosmetic Procedure',
+                                                                    'Engagement Ring',
+                                                                    'Green Loans',
+                                                                    'Household Expenses',
+                                                                    'Large Purchases',
+                                                                    'Medical/Dental',
+                                                                    'Motorcycle',
+                                                                    'RV',
+                                                                    'Taxes',
+                                                                    'Vacation',
+                                                                    'Wedding Loans'))
+
+# move ListingCategory column next to the ListingCategory..numeric.
+df <- df[c(1:4,29,5:28)]
+
+# convert State abbreviation to full name
+df$BorrowerState <- abbr2state(df$BorrowerState)
+
+# convert Is Borrower Homeowner to logical type
+df$IsBorrowerHomeowner <- as.logical(df$IsBorrowerHomeowner)
+
+# replace NA in Occupation with Not Available
+levels(df$Occupation)<-c(levels(df$Occupation),"Not Available") 
+df$Occupation[is.na(df$Occupation)] <- "Not Available"
+
+# replace NA in Employment Status with Not Available
+df$EmploymentStatus[is.na(df$EmploymentStatus)] <- "Not available"
+
+```
 
 # Univariate Plots Section
 
-> **Tip**: In this section, you should perform some preliminary exploration of
-your dataset. Run some summaries of the data and create univariate plots to
-understand the structure of the individual variables in your dataset. Don't
-forget to add a comment after each plot or closely-related group of plots!
-There should be multiple code chunks and text sections; the first one below is
-just to help you get started.
+> We will begin the analysis by looking at the data contained in the data set.
 
-```{r echo=FALSE, Univariate_Plots}
+```{r echo=FALSE, View dataset}
+head(loan_dataset)
+```
+
+```{r echo=FALSE, Summary}
+summary(df)
+```
+
+First, I want to see when and how many listings were created.
+
+```{r}
+# Group Listings by year and month
+creation_date <- df %>% count(df$ListingCreationDate) %>%
+                setNames(.,c("date", "count")) %>%
+                mutate(month = as.Date(cut(date, breaks = "month")))  %>%
+                group_by(month) %>% 
+                summarise(total = sum(count)) 
+
+# Plot Listing Creation Date
+ggplot(creation_date, aes(x=month, y=total)) +
+      geom_line(color = "#3F5D7D", size = 0.75) + 
+      geom_point(color = "#3F5D7D", size = 3) +
+      scale_x_date(date_labels = "%b-%Y", date_breaks="4 months") +
+      labs(title = "When was the listing created?") + 
+      scale_y_continuous(limits = c(0,6000), breaks = seq(0, 6000, 1000)) +
+      theme(plot.title = element_text(size = 18),
+            axis.title.x = element_blank(),
+            axis.title.y = element_blank(),
+            axis.text.y = element_text(size=10),
+            axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+            panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
 
 ```
 
-> **Tip**: Make sure that you leave a blank line between the start / end of
-each code block and the end / start of your Markdown text so that it is
-formatted nicely in the knitted text. Note as well that text on consecutive
-lines is treated as a single space. Make sure you have a blank line between
-your paragraphs so that they too are formatted for easy readability.
+From the graph above, we can see that the number of loans in Prosper has increased over time. In 2008 there was a collapse in the number of listings, however, since 2009, the number has been constantly growing.
+
+```{r}
+# Loan Original Amount statistics
+summary(df$LoanOriginalAmount)
+
+# plot Loan Original Amount
+ggplot(aes(x = LoanOriginalAmount), data = df) +
+  geom_histogram(binwidth = 1000, color = "#ffffff", fill = "#3F5D7D") +
+  stat_bin(binwidth = 1000, aes(y=..count.., label=..count..,), geom="text", vjust=-.5, size=3) +
+  scale_x_continuous(breaks = seq(0, 36000, 1000), labels=dollar_format(prefix="$")) +
+  scale_y_continuous(limits = c(0,17500), breaks = seq(0, 17500, 2500), expand = c(0,0)) +
+  labs(title="How high is the original loan amount (USD)?") + 
+  theme(plot.title = element_text(size = 18, vjust = 5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  geom_vline(aes(xintercept = mean(LoanOriginalAmount)),
+            color = "#ff7f0e", linetype = "dashed", size = 1) + 
+  annotate("text", x = 10000, y = 17000, 
+           label = paste("Mean: $", round(mean(df$LoanOriginalAmount))), size = 4, color = "#ff7f0e")
+```
+ 
+Another interesting feature is the amount of loans. In the above graph we can see that most loans are granted for amounts from \$4,000 to \$12,000. The average loan amount is \$8337.
+
+
+```{r}
+# Term
+term <- df %>% count(df$Term) %>%
+                    setNames(.,c("term", "count"))
+
+# plot term
+waffle(c("12 months" = term$count[term$term == 12] / 500, 
+         "36 months" = term$count[term$term == 36] / 500,
+         "60 months" = term$count[term$term == 60] / 500),
+       rows = 10, 
+       colors = c("#d3d3d3", "#a9bacc", "#3F5D7D"), 
+       size = 0.5, 
+       pad = 1, 
+       legend_pos = "bottom", 
+       title = "How long is a loan term?",
+       xlab = "1 square = 500 customers")
+```
+
+The vast majority of loans is granted for 36 months. Only a fraction of all loans is granted for 12 months.
+
+
+```{r}
+
+# Listing Category
+listing_category <- df %>% count(df$ListingCategory) %>%
+                    setNames(.,c("category", "count"))
+
+# plot listing category
+ggplot(listing_category, aes(x = category, y = count)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = count), vjust = -0.5) +
+  labs(title = "What is the listing's category?") + 
+  scale_y_continuous(limits = c(0,65000), breaks = seq(0, 65000, 5000), expand = c(0,0)) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
+```
+
+Consolidation of debts is the most common reason for a loan. We do not have information about the category for a large number of loans - 16,000. The second most common category is Other, followed by Home Improvement and Business.
+
+```{r}
+
+# Loan Status 
+loan_status <- df %>% count(df$LoanStatus) %>%
+                setNames(.,c("status", "count")) %>%
+                arrange(desc(count))
+
+# plot loan status
+ggplot(loan_status, aes(x = status, y = count)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = count), hjust = -0.25) +
+  labs(title = "What is the loan status?") + 
+  scale_y_continuous(limits = c(0,60000), breaks = seq(0, 55000, 5000), expand = c(0,0)) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  rotate()
+
+```
+
+Most of the loans in the dataset are currently active (56,000). Over 38,000, was paid off. Around 16 thousand were charged off or defaulted.
+
+```{r}
+# Borrower Rate
+summary(df$BorrowerRate)
+        
+borrower_rate <- df %>% count(df$BorrowerRate) %>%
+                    set_colnames(c("rate", "count"))
+
+ggplot(aes(x = BorrowerRate * 100), data = df) +
+  geom_histogram(binwidth = 1, color = "#ffffff", fill = "#3F5D7D") +
+  stat_bin(binwidth = 1, aes(y=..count.., label=..count..,), geom="text", vjust=-.5, size=3) +
+  scale_x_continuous(breaks = seq(0, 50, 1), labels=dollar_format(prefix="", suffix="%")) +
+  scale_y_continuous(limits = c(0,6500), breaks = seq(0, 6500, 1000), expand = c(0,0)) +
+  labs(title="What is the borrower's rate?") + 
+  theme(plot.title = element_text(size = 18, vjust = 5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  geom_vline(aes(xintercept = mean(BorrowerRate) * 100),
+            color = "#ff7f0e", linetype = "dashed", size = 1) + 
+  annotate("text", x = 22, y = 6250, 
+           label = paste("Mean:", round(mean(df$BorrowerRate * 100),2), "%"), size = 4, color = "#ff7f0e")
+```
+
+As for the borrower's rate, it is 0.1928 on average. Although a considerable amount of loans is granted at the borrower's rate of 0.14, 0.15, 0.18, a lot of loans are granted at a much higher rate, for instance 0.32 (5914 loans).
+
+```{r}
+# Monthly Loan Payment statistics
+summary(df$MonthlyLoanPayment)
+
+# plot Monthly Loan Payment 
+ggplot(aes(x = MonthlyLoanPayment), data = df) +
+  geom_histogram(binwidth = 100, color = "#ffffff", fill = "#3F5D7D") +
+  stat_bin(binwidth = 100, aes(y=..count.., label=..count..,), geom="text", vjust=-.5, size=3) +
+  scale_x_continuous(breaks = seq(0, 2300, 100), labels=dollar_format(prefix="$")) +
+  scale_y_continuous(limits = c(0,30000), breaks = seq(0, 30000, 5000), expand = c(0,0)) +
+  labs(title="How high is the monthly loan payment (USD)?") + 
+  theme(plot.title = element_text(size = 18, vjust = 5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  geom_vline(aes(xintercept = mean(MonthlyLoanPayment)),
+            color = "#ff7f0e", linetype = "dashed", size = 1) + 
+  annotate("text", x = 400, y = 29000, 
+           label = paste("Mean: $", round(mean(df$MonthlyLoanPayment))), size = 4, color = "#ff7f0e")
+```
+
+The average loan installment is \$272. Most loan installments are in the \$130 - \$370 range.
+
+```{r}
+# group loans by borrower's state
+loans <- df %>% count(df$BorrowerState) %>%
+                setNames(.,c("region", "count"))
+loans$region <- tolower(loans$region)
+
+# get polygon data for states
+states <- map_data("state")
+
+# merge datasets
+loans_states <- inner_join(states, loans, by = "region")
+
+# plot borrowers by state
+ggplot(data = loans_states, mapping = aes(x = long, y = lat, group = group)) + 
+  coord_fixed(1.3) + 
+  geom_polygon(color = "#000000", fill = "#d3d3d3") + 
+  geom_polygon(data = loans_states, aes(fill = count), color = "#ffffff") +
+  geom_polygon(color = "#000000", fill = NA) +
+  labs(title = "Where does the borrower live?") + 
+  theme_bw() +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text = element_blank(),
+        axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        legend.title = element_blank(),
+        panel.border = element_blank(),
+        panel.grid = element_blank()) + 
+  scale_fill_gradient(trans = "log10", low = "#d3d3d3", high = "#3F5D7D")
+```
+
+The largest number of loans is granted to borrowers living in the California.
+
+```{r}
+# IsBorrowerHomeowner variable
+homeowner <- df %>% count(df$IsBorrowerHomeowner) %>%
+                setNames(.,c("owner", "count"))
+
+# plot home ownership
+waffle(c(No = homeowner$count[homeowner$owner == "FALSE"] / 1000, 
+         Yes = homeowner$count[homeowner$owner == "TRUE"] / 1000), 
+       rows = 6, 
+       colors = c("#d3d3d3","#3F5D7D"), 
+       size = 0.5, pad = 1, 
+       legend_pos = "bottom", 
+       title = "Is Borrower a Homeowner?",
+       xlab = "1 square = 1000 customers")
+```
+
+The share of homeowners in the total number of borrowers is around 50%.
+
+```{r}
+# Employment Status
+employment <- df %>% count(df$EmploymentStatus) %>%
+                    setNames(.,c("employment", "count")) %>%
+                    arrange(desc(count))
+
+# plot Employment Status
+ggplot(employment, aes(x = employment, y = count)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = count), hjust = -0.5) +
+  labs(title = "What is the borrower's employment status?") + 
+  scale_y_continuous(limits = c(0,75000), breaks = seq(0, 70000, 5000), expand = c(0,0)) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) +
+  rotate()
+```
+
+The vast majority of borrowers are currently employed. Only a fraction of borrowers do not have a job or work part-time.
+
+```{r}
+# Occupation
+occupation <- df %>% count(df$Occupation) %>%
+                    setNames(.,c("occupation", "count")) %>%
+                    arrange(desc(count))
+
+# plot occupation
+ggplot(occupation[1:34,], aes(x = occupation, y = count)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = count), vjust = -0.5) +
+  labs(title = "What is the borrower's occupation?") + 
+  scale_y_continuous(limits = c(0,35000), breaks = seq(0, 35000, 5000), expand = c(0,0)) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
+
+ggplot(occupation[35:67,], aes(x = occupation, y = count)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = count), vjust = -0.5) +
+  scale_y_continuous(limits = c(0,35000), breaks = seq(0, 35000, 5000), expand = c(0,0)) +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
+```
+
+Unfortunately, for the majority of loans, there is no information about the borrower's profession. A significant part of borrowers are professionals, programmers or executives.
+
+```{r}
+# Stated Monthly Income
+summary(df$StatedMonthlyIncome)
+
+# plot Stated Monthly Income
+ggplot(aes(x = StatedMonthlyIncome), data = df) +
+  geom_histogram(binwidth = 1000, color = "#ffffff", fill = "#3F5D7D") +
+  stat_bin(binwidth = 1000, aes(y=..count.., label=..count..,), geom="text", vjust=-.5, size=3) +
+  scale_x_continuous(limits = c(-999, quantile(df$StatedMonthlyIncome, 0.99)), 
+                     breaks = seq(0, 20000, 1000),
+                     expand = c(0,0),
+                     labels=dollar_format(prefix="$")) +
+  scale_y_continuous(limits = c(0,20000), 
+                     breaks = seq(0, 20000, 2500), 
+                     expand = c(0,0)) +
+  labs(title="What income was delcared by the borrower (monthly, USD)?") + 
+  theme(plot.title = element_text(size = 18, vjust = 5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  geom_vline(aes(xintercept = mean(StatedMonthlyIncome)),
+            color = "#ff7f0e", linetype = "dashed", size = 1) + 
+  annotate("text", x = 6500, y = 19500, 
+           label = paste("Mean: $", round(mean(df$StatedMonthlyIncome))), size = 4, color = "#ff7f0e")
+```
+
+The average monthly income of a borrower is \$5608. The vast majority of borrowers earn in the period between \$3200 - \$6825.
+
+```{r}
+# Debt To Income Ratio
+summary(df$DebtToIncomeRatio)
+
+# plot debt to income ratio
+ggplot(aes(x = DebtToIncomeRatio), data = df) +
+  geom_histogram(binwidth = 0.05, color = "#ffffff", fill = "#3F5D7D") +
+  stat_bin(binwidth = 0.05, aes(y=..count.., label=..count..,), geom="text", vjust=-.5, size=3) +
+  scale_x_continuous(limits = c(-0.05, quantile(df$DebtToIncomeRatio, 0.99)), breaks = seq(0, 2, 0.05), expand = c(0,0)) +
+  scale_y_continuous(limits = c(0,20000), breaks = seq(0, 20000, 2500), expand = c(0,0)) +
+  labs(title="What is the borrower's debt to income ratio?") + 
+  theme(plot.title = element_text(size = 18, vjust = 5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  geom_vline(aes(xintercept = mean(DebtToIncomeRatio)),
+            color = "#ff7f0e", linetype = "dashed", size = 1) + 
+  annotate("text", x = 0.29, y = 19000, 
+           label = paste("Mean:", round(mean(df$DebtToIncomeRatio),2)), size = 4, color = "#ff7f0e")
+```
+
+It is interesting to compare income to debt. As we can see in the plot above, the average debt to income ratio is 0.2552 and the vast majority of borrowers are in the range of 0.1300 - 0.3100.
+
+```{r}
+# Delinquencies
+limit <- quantile(df$DelinquenciesLast7Years, 0.99)
+
+ggplot(data = df, aes(x = DelinquenciesLast7Years)) +
+  geom_histogram(binwidth = 1, color = "#ffffff", fill = "#3F5D7D") +
+  stat_bin(binwidth = 1, aes(y=..count.., label=..count..,), geom="text", vjust=-.5, size=3) +
+  scale_x_continuous(limits = c(-1, limit), breaks = seq(0, limit, 1)) +
+  scale_y_continuous(limits = c(0,80000), breaks = seq(0, 80000, 5000), expand = c(0,0)) +
+  labs(title = "How many delinquencies did borrower have in past 7 years??") + 
+  theme(plot.title = element_text(size = 18, vjust = 5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  geom_vline(aes(xintercept = mean(DelinquenciesLast7Years)),
+            color = "#ff7f0e", linetype = "dashed", size = 1) + 
+  annotate("text", x = 6, y = 75000, 
+           label = paste("Mean:", round(mean(df$DelinquenciesLast7Years))), size = 4, color = "#ff7f0e")
+```
+
+Another important aspect when assessing credit risk is the number of delinquencies that the borrower had in recent years. As we can see in the plot above, most borrowers did not have any delinquencies in the last 7 years.
+
+```{r}
+# Public Records
+limit <- quantile(df$PublicRecordsLast10Years, 0.99)
+
+ggplot(data = df, aes(x = PublicRecordsLast10Years)) +
+  geom_histogram(binwidth = 1, color = "#ffffff", fill = "#3F5D7D") +
+  stat_bin(binwidth = 1, aes(y=..count.., label=..count..,), geom="text", vjust=-.5, size=3) +
+  scale_x_continuous(limits = c(-1, limit), breaks = seq(0, limit, 1)) +
+  scale_y_continuous(limits = c(0,90000), breaks = seq(0, 90000, 5000), expand = c(0,0)) +
+  labs(title = "How many public records did borrower have in past 10 years??") + 
+  theme(plot.title = element_text(size = 18, vjust = 5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  geom_vline(aes(xintercept = mean(PublicRecordsLast10Years)),
+            color = "#ff7f0e", linetype = "dashed", size = 1) + 
+  annotate("text", x = 6, y = 75000, 
+           label = paste("Mean:", round(mean(df$PublicRecordsLast10Years))), size = 4, color = "#ff7f0e")
+```
+
+We see similar situations when it comes to public records from the last 10 years. For a significant number of borrowers, it is 0.
+
+```{r}
+# Bank card Utilization
+summary(df$BankcardUtilization)
+
+ggplot(aes(x = BankcardUtilization * 100), data = df) +
+  geom_histogram(binwidth = 5, color = "#ffffff", fill = "#3F5D7D") +
+  stat_bin(binwidth = 5, aes(y=..count.., label=..count..,), geom="text", vjust=-.5, size=3) +
+  scale_x_continuous(limits = c(-3,125), breaks = seq(0, 125, 5), expand = c(0,0), labels=dollar_format(prefix="", suffix="%")) +
+  scale_y_continuous(limits = c(0,18000), breaks = seq(0, 18000, 2500), expand = c(0,0)) +
+  labs(title="What is the borrower's bankcard utilization?") + 
+  theme(plot.title = element_text(size = 18, vjust = 5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  geom_vline(aes(xintercept = mean(BankcardUtilization * 100)),
+            color = "#ff7f0e", linetype = "dashed", size = 1) + 
+  annotate("text", x = 58, y = 16000, 
+           label = paste("Mean:", round(mean(df$BankcardUtilization * 100),2), "%"), size = 4, color = "#ff7f0e")
+```
+
+Utilization of a credit card is also an important factor in risk assessment. As we can see in the plot above, the average credit card utilization is 52%, and most borrowers used between 23% and 82% of the available resources on the credit card.
+
+```{r}
+# Revolving Credit Balance
+summary(df$RevolvingCreditBalance)
+
+# Revolving Credit Balance
+ggplot(aes(x = RevolvingCreditBalance), data = df) +
+  geom_histogram(binwidth = 5000, color = "#ffffff", fill = "#3F5D7D") +
+  stat_bin(binwidth = 5000, aes(y=..count.., label=..count..,), geom="text", vjust=-.5, size=3) +
+  scale_x_continuous(limits = c(0, quantile(df$RevolvingCreditBalance, 0.99)), 
+                     breaks = seq(0, 150000, 5000),
+                     expand = c(0,0),
+                     labels=dollar_format(prefix="$")) +
+  scale_y_continuous(limits = c(0,30000), 
+                     breaks = seq(0, 30000, 2500), 
+                     expand = c(0,0)) +
+  labs(title="What is the amount of borrower's revolving credit balance (USD)?") + 
+  theme(plot.title = element_text(size = 18, vjust = 5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  geom_vline(aes(xintercept = mean(RevolvingCreditBalance)),
+            color = "#ff7f0e", linetype = "dashed", size = 1) + 
+  annotate("text", x = 24000, y = 28000, 
+           label = paste("Mean: $", round(mean(df$RevolvingCreditBalance))), size = 4, color = "#ff7f0e")
+```
+
+Another value that can help us analyze the financial status of the borrower is revelving credit balance. As we can see, the average value is \$16,424, and most borrowers are in the \$2091 - \$18254 range.
+
+
+```{r}
+# Prosper Rating
+prosper_rating <- df %>% count(df$ProsperRating..Alpha.) %>%
+                    setNames(.,c("rating", "count")) %>%
+                    arrange(desc(count))
+
+# Prosper Rating
+ggplot(prosper_rating, aes(x = rating, y = count)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = count), hjust = -0.5) +
+  labs(title = "What is the borrower's prosper rating?") + 
+  scale_y_continuous(limits = c(0,31000), breaks = seq(0, 31000, 2500), expand = c(0,0)) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) +
+  rotate()
+```
+
+Based on these data, and several other factors, Prosper assessed the credit risk associated with each borrower. As we can see on the graph above, the most common risk is C, then B. For a large number of borrowers, we do not have any information about the risk, as this information was not collected before 2009.
+
+```{r}
+# Number of investors
+summary(df$Investors)
+
+ggplot(aes(x = Investors), data = df) +
+  geom_density(color = "#ffffff", fill = "#3F5D7D") + 
+  scale_x_continuous(limits = c(0,650), breaks = seq(0, 650, 25)) +
+  labs(title="What is the number of investors?") + 
+  xlab('Number of investors') +
+  ylab('Density') +
+  theme(plot.title = element_text(size = 18, vjust = 5),
+        axis.title.x = element_text(size=10),
+        axis.title.y = element_text(size=10),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  geom_vline(aes(xintercept = mean(Investors)),
+            color = "#ff7f0e", linetype = "dashed", size = 1) + 
+  annotate("text", x = 110, y = 0.015, 
+           label = paste("Mean:", round(mean(df$Investors),0)), size = 4, color = "#ff7f0e")
+```
+
+The average number of investors per loan is 80. Most of the loans have from 1 to 115 investors. The highest number of investors per loan was 1189.
+
+```{r}
+# Lender Yield
+summary(df$LenderYield)
+
+ggplot(aes(x = LenderYield), data = df) +
+  geom_histogram(binwidth = 0.025, color = "#ffffff", fill = "#3F5D7D") +
+  stat_bin(binwidth = 0.025, aes(y=..count.., label=..count..,), geom="text", vjust=-.5, size=3) +
+  scale_x_continuous(limits=c(0,0.37),breaks = seq(0, 0.35, 0.025)) +
+  scale_y_continuous(breaks = seq(0, 14000, 2000)) +
+  labs(title="What is the lender yield?") + 
+  theme(plot.title = element_text(size = 18, vjust = 5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  geom_vline(aes(xintercept = mean(LenderYield)),
+            color = "#ff7f0e", linetype = "dashed", size = 1) + 
+  annotate("text", x = 0.205, y = 14000, 
+           label = paste("Mean:", round(mean(df$LenderYield),2)), size = 4, color = "#ff7f0e")
+```
+
+
+The lender yield is the interest rate minus the expected fee payments. It is the most important input into any return calculation. As we can see, lender yield is 0.1827 on average. Most of the laons range from 0.1242 to  0.2400.
+
 
 # Univariate Analysis
 
-> **Tip**: Now that you've completed your univariate explorations, it's time to
-reflect on and summarize what you've found. Use the questions below to help you
-gather your observations and add your own if you have other thoughts!
-
 ### What is the structure of your dataset?
 
+```{r echo=FALSE, Summary}
+summary(df)
+```
+
 ### What is/are the main feature(s) of interest in your dataset?
+
 
 ### What other features in the dataset do you think will help support your \
 investigation into your feature(s) of interest?
