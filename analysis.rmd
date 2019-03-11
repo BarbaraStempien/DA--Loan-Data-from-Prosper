@@ -30,6 +30,7 @@ library(ggcorrplot)
 library(scales)
 library(ggpubr)
 library(gridExtra)
+library(GGally)
 ```
 
 ```{r Load_the_Data}
@@ -161,7 +162,7 @@ head(loan_dataset)
 summary(df)
 ```
 
-First, I want to see when and how many listings were created.
+First, we want to see when and how many listings were created.
 
 ```{r}
 # Group Listings by year and month
@@ -243,7 +244,7 @@ listing_category <- df %>% count(df$ListingCategory) %>%
                     setNames(.,c("category", "count"))
 
 # plot listing category
-ggplot(listing_category, aes(x = category, y = count)) +
+ggplot(listing_category, aes(x =  reorder(category, -count), y = count)) +
   geom_bar(fill = "#3F5D7D", stat = "identity") +
   geom_text(aes(label = count), vjust = -0.5) +
   labs(title = "What is the listing's category?") + 
@@ -394,7 +395,7 @@ employment <- df %>% count(df$EmploymentStatus) %>%
                     arrange(desc(count))
 
 # plot Employment Status
-ggplot(employment, aes(x = employment, y = count)) +
+ggplot(employment, aes(x = reorder(employment, count), y = count)) +
   geom_bar(fill = "#3F5D7D", stat = "identity") +
   geom_text(aes(label = count), hjust = -0.5) +
   labs(title = "What is the borrower's employment status?") + 
@@ -417,7 +418,7 @@ occupation <- df %>% count(df$Occupation) %>%
                     arrange(desc(count))
 
 # plot occupation
-ggplot(occupation[1:34,], aes(x = occupation, y = count)) +
+ggplot(occupation[1:34,], aes(x = reorder(occupation, -count), y = count)) +
   geom_bar(fill = "#3F5D7D", stat = "identity") +
   geom_text(aes(label = count), vjust = -0.5) +
   labs(title = "What is the borrower's occupation?") + 
@@ -429,7 +430,7 @@ ggplot(occupation[1:34,], aes(x = occupation, y = count)) +
         axis.text.x = element_text(angle = 45, hjust = 1, size=10),
         panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
 
-ggplot(occupation[35:67,], aes(x = occupation, y = count)) +
+ggplot(occupation[35:67,], aes(x = reorder(occupation, -count), y = count)) +
   geom_bar(fill = "#3F5D7D", stat = "identity") +
   geom_text(aes(label = count), vjust = -0.5) +
   scale_y_continuous(limits = c(0,35000), breaks = seq(0, 35000, 5000), expand = c(0,0)) +
@@ -608,7 +609,7 @@ prosper_rating <- df %>% count(df$ProsperRating..Alpha.) %>%
                     arrange(desc(count))
 
 # Prosper Rating
-ggplot(prosper_rating, aes(x = rating, y = count)) +
+ggplot(prosper_rating, aes(x = reorder(rating, count), y = count)) +
   geom_bar(fill = "#3F5D7D", stat = "identity") +
   geom_text(aes(label = count), hjust = -0.5) +
   labs(title = "What is the borrower's prosper rating?") + 
@@ -689,8 +690,7 @@ I have selected 29 variables from the original dataset for my analysis.
 
 ### What is/are the main feature(s) of interest in your dataset?
 
-The most interesting for me is to understand what is the profile of typical peer-to-peer borrower, 
-in terms of demographics, credit characteristics and other factors.
+The most interesting for me is to understand what is the profile of typical peer-to-peer borrower, who fails to pay off the loan, What are the demographics and credit characteristics of the borrower who defaults is past due on the credit.
 
 
 ### What other features in the dataset do you think will help support your \
@@ -725,15 +725,185 @@ While building different plots, I have also grouped variables and subset dataset
 
 # Bivariate Plots Section
 
-> **Tip**: Based on what you saw in the univariate plots, what relationships
-between variables might be interesting to look at in this section? Don't limit
-yourself to relationships between a main output feature and one of the
-supporting variables. Try to look at relationships between supporting variables
-as well.
+```{r}
+# plot correlation matrix
+ggcorr(df, label = TRUE, label_size = 3, 
+       hjust = 0.8, size = 2.5, color = "black", layout.exp = 2)
+```
+
+Correlogram shows that there is a strong correlation (>= 0.7) between:
+
+- Open Revolving Monthly Payment and Revolving Credit Balance;
+- Open Credit Lines and Open Revolving Accounts;
+- Loan Orginal Amount and Laon Monthly Payment;
+- Borrower Rate and Lender Yield;
+
+These correlations are not surprising. In my analysis, I plan to focus on the variables that impact borrowers ability to pay off the credit, therefore Loan Orginal Amount and Laon Monthly Payment will definitely be investigated.
+
 
 ```{r echo=FALSE, Bivariate_Plots}
+# average prosper score by loan status
+score_status <- df[c(1,17)]
+score_status$ProsperScore <- as.numeric(levels(score_status$ProsperScore))[score_status$ProsperScore]
+df.avg_score_status <- score_status %>%
+    group_by(LoanStatus) %>%
+    summarise(AvgProsperScore = mean(ProsperScore,na.rm = TRUE), Count = n()) %>%
+    arrange(AvgProsperScore)
 
+df.avg_score_status
+
+# plot average prosper score by loan status
+ggplot(df.avg_score_status, aes(x = reorder(LoanStatus, -AvgProsperScore) , y = AvgProsperScore)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = round(AvgProsperScore,2)), hjust = -0.5) +
+  labs(title = "What is the average prosper score by loan status?") + 
+  scale_y_continuous(limits = c(0,7), breaks = c(0,1,2,3,4,5,6,7)) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) +
+  rotate()
 ```
+
+Looking at the above plot we can see that the average prosper score is very low for loans that were defaulted or charged off. Interestingly, the prosper score is also low for loans that are already completed and rather high for loans that are past due. The highest prosper score have current loans and those awaiting a final payment.
+
+```{r}
+# average prosper loan amount by loan status
+amount_status <- df[c(1,8)]
+df.avg_amount_status <- amount_status %>%
+    group_by(LoanStatus) %>%
+    summarise(AvgLoanOriginalAmount = mean(LoanOriginalAmount,na.rm = TRUE), Count = n()) %>%
+    arrange(AvgLoanOriginalAmount)
+
+df.avg_amount_status
+
+# plot average loan amount by loan status
+ggplot(df.avg_amount_status, aes(x = reorder(LoanStatus, -AvgLoanOriginalAmount) , y = AvgLoanOriginalAmount)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = round(AvgLoanOriginalAmount,0)), hjust = -0.5) +
+  labs(title = "What is the average loan original amount by loan status?") + 
+  scale_y_continuous(limits = c(0,11000), breaks = seq(0, 11000, 1000)) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) +
+  rotate()
+```
+
+As we can see on the above plot, the average loan amount for charged off and defaulted loans is much lower than for current loans. Interestingly, the average loan amount is aslo lower for completed loans. The average amount of loan for current loans is \$10,361.
+
+```{r}
+# average prosper loan amount by prosper score
+amount_score <- df[c(17,8)]
+df.avg_amount_score <- amount_score %>%
+    group_by(ProsperScore) %>%
+    summarise(AvgLoanOriginalAmount = mean(LoanOriginalAmount,na.rm = TRUE), Count = n()) %>%
+    arrange(ProsperScore)
+
+df.avg_amount_score
+
+# plot average loan amount by prosper score
+ggplot(df.avg_amount_score, aes(x = ProsperScore, y = AvgLoanOriginalAmount)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = round(AvgLoanOriginalAmount,0)), hjust = -0.5) +
+  labs(title = "What is the average loan original amount by prosper score?") + 
+#   scale_y_continuous(limits = c(0,11000), breaks = seq(0, 11000, 1000)) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) +
+  rotate()
+```
+
+Another interesting observation we can make is about the relation of the loan amount to the borrower's score. In the above plot (N/A values are removed) we can see that the higher amounts of the loan are granted to borrowers with the highest rating. This is in line with common sense - larger loans are granted to a more reliable borrower, while smaller loans to those with a greater risk of non-repayment.
+
+
+```{r}
+# monthly loan payment by loan status
+monthly_status <- df[c(1,9)]
+df.avg_monthly_status <- monthly_status %>%
+    group_by(LoanStatus) %>%
+    summarise(AvgMonthlyPayment = mean(MonthlyLoanPayment,na.rm = TRUE), Count = n()) %>%
+    arrange(AvgMonthlyPayment)
+
+df.avg_monthly_status
+
+# plot monthly loan payment by loan status
+ggplot(df.avg_monthly_status, aes(x = reorder(LoanStatus, -AvgMonthlyPayment) , y = AvgMonthlyPayment)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = round(AvgMonthlyPayment,0)), hjust = -0.5) +
+  labs(title = "What is the average monthly loan payment by loan status?") + 
+  scale_y_continuous(limits = c(0,400), breaks = seq(0, 400, 50), labels=dollar_format(prefix="$")) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) +
+  rotate()
+```
+
+As we can see in the above plot, the average monthly payment is the highest for current loans, followed shortly by the loans awaiting final payment. Past due loans are in the third position. We can also see that the average monthly loan payment for completed loans is one of the lowest. This is as expected - smaller loans are easier to pay back while larger loans, that more time and effort.
+
+
+```{r}
+# Stated Monthly Income by loan status
+monthly_income_status <- df[c(1,14)]
+df.avg_monthly_income_status <- monthly_income_status %>%
+    group_by(LoanStatus) %>%
+    summarise(AvgMonthlyPayment = mean(StatedMonthlyIncome,na.rm = TRUE), Count = n()) %>%
+    arrange(AvgMonthlyPayment)
+
+df.avg_monthly_income_status
+
+# plot Stated Monthly Income by loan status
+ggplot(df.avg_monthly_income_status, aes(x = reorder(LoanStatus, -AvgMonthlyPayment) , y = AvgMonthlyPayment)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = round(AvgMonthlyPayment,0)), hjust = -0.5) +
+  labs(title = "What is the average monthly income by loan status?") + 
+  scale_y_continuous(limits = c(0, 6500), breaks = seq(0, 6500, 500), labels=dollar_format(prefix="$")) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) +
+  rotate()
+```
+
+As we can see in the above plot, the average stated monthly income is the highest for loans awaiting final payment, followed shortly by the current loans. Past due loans are in the third position, close to Completed loans. Low income is typical for canceled, defaulted and charged-off loans.
+
+```{r}
+# average debt to income ratio by loan status
+debt_status <- df[c(1,15)]
+df.avg_debt_status <- debt_status %>%
+    group_by(LoanStatus) %>%
+    summarise(AvgDebtToIncomeRatio = mean(DebtToIncomeRatio,na.rm = TRUE), Count = n()) %>%
+    arrange(AvgDebtToIncomeRatio)
+
+# plot average debt to income by loan status
+ggplot(df.avg_debt_status, aes(x = reorder(LoanStatus, -AvgDebtToIncomeRatio) , y = AvgDebtToIncomeRatio)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = round(AvgDebtToIncomeRatio,2)), hjust = -0.5) +
+  labs(title = "What is the average debt to income ratio by loan status?") + 
+#   scale_y_continuous(limits = c(0,7), breaks = c(0,1,2,3,4,5,6,7)) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) +
+  rotate()
+```
+
+It's not surprising to see that the average debt to income ratio is the highest for defaulted, past due and charged off loans. We can also see it is significantly lower for loans awaiting the final payment and completed.
+
 
 # Bivariate Analysis
 
@@ -742,81 +912,296 @@ here. Use the questions below to guide your discussion.
 
 ### Talk about some of the relationships you observed in this part of the \
 investigation. How did the feature(s) of interest vary with other features in \
-the dataset?
-
-### Did you observe any interesting relationships between the other features \
+the dataset? Did you observe any interesting relationships between the other features \
 (not the main feature(s) of interest)?
+
+An interesting relationship I have observer is that prosper score and loan status are not related as we could expect. Quite a high number of loans with high prosper score is past due. Moreover, the average prospers score for completed loans is much lower than for past due loans.
+
+Another interesting insight is that the average loan amount for borrowers with the lowest score - 0 - is higher than the average loan amount for borrowers with score 1 and score 2. This is surprising, as the risk related to investing in a borrower with score 0 is much higher than investing in a borrower with score 1 or 2.
 
 ### What was the strongest relationship you found?
 
+The strongest relationship I have found was between debt to income ratio and loan status. Borrowers with the high debt to income ratio were more often defaulting, past due or charged off on their loan. 
 
 # Multivariate Plots Section
 
-> **Tip**: Now it's time to put everything together. Based on what you found in
-the bivariate plots section, create a few multivariate plots to investigate
-more complex interactions between variables. Make sure that the plots that you
-create here are justified by the plots you explored in the previous section. If
-you plan on creating any mathematical models, this is the section where you
-will do that.
+Let's start from looking at the relation of employment status, debt to income ratio and loan status.
 
-```{r echo=FALSE, Multivariate_Plots}
+```{r}
+# plot employmnt status, debt to income ratio and loan status
+ggplot(aes(EmploymentStatus, DebtToIncomeRatio), data=df) +
+  geom_jitter(aes(color=LoanStatus),alpha=1) +
+  scale_y_continuous(breaks = seq(0, 10, 0.5)) +
+  guides(fill = guide_legend(override.aes= list(alpha = 1))) +
+  scale_color_manual(values=c("#539BBA", "#408B5C", "#C0BE59", "#C05E59", "#664081", "#9B4875", "#686977")) +
+  labs(title = "Employment Status, Debt To Income Ratio and Loan Status relation") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
+```
+
+As we can see in the above plot, only a small fraction of the loans belong to the unemployed borrowers. We can see most of the current loans are in the employed and other buckets. Unfortunately, most of the defaulted loans are in the not available bucket. Debt to income ratio is below 1 for most of the loans. We can see however a small pick at the ratio of 10.  To get a better understanding of these relations, let's zoom in to loans with debt to income ratio below the 99 quantile.
+
+```{r}
+ggplot(aes(EmploymentStatus, DebtToIncomeRatio), data=df) +
+  geom_jitter(aes(color=LoanStatus),alpha=1) +
+  scale_y_continuous(limits = c(0.0, quantile(df$DebtToIncomeRatio, 0.99)),
+                     breaks = seq(0, 1.5, 0.1)) +
+  guides(fill = guide_legend(override.aes= list(alpha = 1))) +
+  scale_color_manual(values=c("#539BBA", "#408B5C", "#C0BE59", "#C05E59", "#664081", "#9B4875", "#686977")) +
+  labs(title = "Employment Status, Debt To Income Ratio and Loan Status relation") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
+```
+
+
+Looking at this plot, we can see that there is significantly less Charged off loans in the employed bucket. We can see them however in the full-time bucket. We can also see that defaulted loans are spread rather equally when it comes to the borrower's debt to income ratio. This is rather surprising, as we would expect borrowers with the highest debt to income ratio the default on their loans more frequently.
+
+
+Now, let's see how monthly loan payment relates to employment status and loan status.
+
+```{r}
+ggplot(aes(EmploymentStatus, MonthlyLoanPayment), data=df) +
+  geom_jitter(aes(color=LoanStatus),alpha=1) +
+  scale_y_continuous(labels=dollar_format(prefix="$")) +
+  guides(fill = guide_legend(override.aes= list(alpha = 1))) +
+  scale_color_manual(values=c("#539BBA", "#408B5C", "#C0BE59", "#C05E59", "#664081", "#9B4875", "#686977")) +
+  labs(title = "Employment Status, Monthly Loan Payment and Loan Status relation") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
+```
+
+As we can see in the above plot, most of the loans have monthly payment below 1500\$. The self-employed bucket is quite interesting, as we can see that loans closer to 1000$ then do be charged off or defaulted. To get a better understanding of these relations, let's zoom in to loans with monthly payment below the 99 quantile.
+
+```{r}
+ggplot(aes(EmploymentStatus, MonthlyLoanPayment), data=df) +
+  geom_jitter(aes(color=LoanStatus),alpha=1) +
+  scale_y_continuous(limits = c(0.0, quantile(df$MonthlyLoanPayment, 0.99)),
+                     breaks = seq(0, 1000, 50),
+                     labels=dollar_format(prefix="$")) +
+  guides(fill = guide_legend(override.aes= list(alpha = 1))) +
+  scale_color_manual(values=c("#539BBA", "#408B5C", "#C0BE59", "#C05E59", "#664081", "#9B4875", "#686977")) +
+  labs(title = "Employment Status, Monthly Loan Payment and Loan Status relation") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
+```
+
+Monthly loan payment does not seem to have a big impact on the loan status for employed borrowers. We can see only a slight increase in the number of charged off and defaulted loans for the full time and not employed borrowers. For self-employed borrowers, we can see that the number of charged-off or defaulted loans with monthly payment above the $600 is higher than for lower monthly payments.
+
+Another interesting observation we can make is that borrowers who are not employed, retired or work part-time, then to be offered loans with a monthly payment below \$400. Majority of loans granted to self-employed borrowers have monthly payment below \$600. At the same time, employees and full-time workers get loans with monthly payment below $900.
+
+Let's now look at the relation of Stated Monthly Income, Monthly Loan Payment and Loan Status.
+
+```{r}
+ggplot(aes(StatedMonthlyIncome, MonthlyLoanPayment), data=df) +
+  geom_jitter(aes(color=LoanStatus),alpha=1) +
+  scale_x_continuous(labels=dollar_format(prefix="$")) +
+  scale_y_continuous(labels=dollar_format(prefix="$")) +
+  guides(fill = guide_legend(override.aes= list(alpha = 1))) +
+  scale_color_manual(values=c("#539BBA", "#408B5C", "#C0BE59", "#C05E59", "#664081", "#9B4875", "#686977")) +
+  labs(title = "Stated Monthly Income, Monthly Loan Payment and Loan Status relation") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
 
 ```
+
+As we can see, we have some outliers in the Stated Monthly Income, let's zoom in to 99 quantile.
+
+```{r}
+ggplot(aes(StatedMonthlyIncome, MonthlyLoanPayment), data=df) +
+  geom_jitter(aes(color=LoanStatus),alpha=1) +
+  scale_x_continuous(limits = c(0.0, quantile(df$StatedMonthlyIncome, 0.99)),
+                     breaks = seq(0, 100000, 1000),
+                     labels=dollar_format(prefix="$")) +
+  scale_y_continuous(limits = c(0.0, quantile(df$MonthlyLoanPayment, 0.99)),
+                     breaks = seq(0, 1500, 100),
+                     labels=dollar_format(prefix="$")) +
+  guides(fill = guide_legend(override.aes= list(alpha = 1))) +
+  scale_color_manual(values=c("#539BBA", "#408B5C", "#C0BE59", "#C05E59", "#664081", "#9B4875", "#686977")) +
+  labs(title = "Stated Monthly Income, Monthly Loan Payment and Loan Status relation") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
+```
+
+As we can see for the majority of loans monthly loan payment is below \$700 while borrowers stated income is below \$10,000. It is interesting to see a lot of charged-off and defaulted loans in the lower left corner of the plot - small monthly payment but a small income. It seems that borrowers with higher income can pay off the loan even if the monthly payment is larger, while borrowers with the low-income struggle to pay off the loan even if the monthly payment is low.
+
+```{r}
+ggplot(aes(LoanOriginalAmount, ProsperRating..Alpha.), data=df) +
+  geom_jitter(aes(color=LoanStatus),alpha=1) +
+  scale_x_continuous(breaks = seq(0, 50000, 2500),
+                     labels=dollar_format(prefix="$")) +
+  guides(fill = guide_legend(override.aes= list(alpha = 1))) +
+  scale_color_manual(values=c("#539BBA", "#408B5C", "#C0BE59", "#C05E59", "#664081", "#9B4875", "#686977")) +
+  labs(title = "Prosper Rating, Loan Original Amount and Loan Status relation") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
+```
+
+In this plot, we can look closer at the prosper rating, loan original amount and loan status. We can see that most of the completed loans were loans with a small amount.  Most of the loans with a high amount are still active. In this plot, we can also clearly see a relation between prosper score and the amount of loan. Borrowers with a low score are granted smaller loans, while those with good rating bigger loans. High Rish and E category borrowers are almost never granted a loan above the \$10,000, while we can see that some of the AA, A and B category borrowers have loans above the \$25,000.
+
+Lastly, let's have a look if there is any significant relation between Prosper Rating, Listing Category and Loan Status.
+
+```{r}
+ggplot(aes(ProsperRating..Alpha., ListingCategory), data=df)+
+  geom_jitter(aes(color=LoanStatus),alpha=1)+
+  guides(fill = guide_legend(override.aes= list(alpha = 1))) +
+  scale_color_manual(values=c("#539BBA", "#408B5C", "#C0BE59", "#C05E59", "#664081", "#9B4875", "#686977")) +
+  labs(title = "Prosper Rating, Listing Category and Loan Status relation") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
+```
+
+It seems that there is no relation between the listing category and loan status. There is no category that would have significantly more defaulted or charged-off loans.
 
 # Multivariate Analysis
 
 ### Talk about some of the relationships you observed in this part of the \
 investigation. Were there features that strengthened each other in terms of \
-looking at your feature(s) of interest?
+looking at your feature(s) of interest? Were there any interesting or surprising \
+interactions between features?
 
-### Were there any interesting or surprising interactions between features?
+I noticed that only a small fraction of the loans belong to the unemployed borrowers, most of the current loans belong to the employed, full-time borrowers. At first glance, we could see that employed borrowers have a significantly less Charged off loans, however, these loans appear frequently for full-time working borrowers. Unfortunately, for most of the defaulted loans, we do not have information on the borrower's employment status, which limits our investigation.
 
-### OPTIONAL: Did you create any models with your dataset? Discuss the \
-strengths and limitations of your model.
+Another interesting finding is that the debt to income ratio is below 1 for most of the loans.  We could also see that defaulted loans are spread rather equally when it comes to the borrower's debt to income ratio. This is rather surprising, as we would expect borrowers with the highest debt to income ratio the default on their loans more frequently.
+
+When it comes to how monthly loan payment relates to employment status and loan status, we could see that monthly loan payment does not seem to have a big impact on the loan status for employed borrowers. We could see only a slight increase in the number of charged off and defaulted loans for the full time and not employed borrowers. However, for self-employed borrowers, we could see that the number of charged-off or defaulted loans with monthly payment above the $600 is higher than for lower monthly payments.
+
+Another interesting observation we made is that borrowers who are not employed, retired or work part-time, then to be offered loans with a monthly payment below \$400. Majority of loans granted to self-employed borrowers have monthly payment below \$600. At the same time, employees and full-time workers get loans with monthly payment below $900.
+
+The majority of loans monthly loan payment is below \$700 while borrowers stated income is below \$10,000. It was interesting to see a lot of charged-off and defaulted loans for borrowers with a small monthly payment and a small income. It seems that borrowers with higher income can pay off the loan even if the monthly payment is larger, while borrowers with the low-income struggle to pay off the loan even if the monthly payment is low.
+
+We could also see that most of the completed loans were loans with a small amount.  Most of the loans with a high amount are still active. We could also clearly see a relation between prosper score and the amount of loan. Borrowers with a low score are granted smaller loans, while those with good rating bigger loans. High Rish and E category borrowers are almost never granted a loan above the \$10,000, while we can see that some of the AA, A and B category borrowers have loans above the \$25,000.
+
+Surprisingly, we did not find any relation between the listing category and loan status. There is no category that would have significantly more defaulted or charged-off loans.
+
+
 
 ------
 
 # Final Plots and Summary
 
-> **Tip**: You've done a lot of exploration and have built up an understanding
-of the structure of and relationships between the variables in your dataset.
-Here, you will select three plots from all of your previous exploration to
-present here as a summary of some of your most interesting findings. Make sure
-that you have refined your selected plots for good titling, axis labels (with
-units), and good aesthetic choices (e.g. color, transparency). After each plot,
-make sure you justify why you chose each plot by describing what it shows.
-
 ### Plot One
 ```{r echo=FALSE, Plot_One}
+# Loan Status 
+loan_status <- df %>% count(df$LoanStatus) %>%
+                setNames(.,c("status", "count")) %>%
+                arrange(desc(count))
 
+# plot loan status
+ggplot(loan_status, aes(x = status, y = count)) +
+  geom_bar(fill = "#3F5D7D", stat = "identity") +
+  geom_text(aes(label = count), hjust = -0.25) +
+  labs(title = "What is the loan status?") + 
+  xlab("Loan Status") +
+  ylab("Count") +
+  scale_y_continuous(limits = c(0,60000), breaks = seq(0, 55000, 5000), expand = c(0,0)) +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(size=10),
+        axis.title.y = element_text(size=10),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5)) + 
+  rotate()
 ```
 
 ### Description One
 
+Most of the loans in the dataset are currently active (56,000). Over 38,000, was paid off. Around 16 thousand were charged off or defaulted. Understanding what reasons stay behind the defaulted and charged off loans is very important from the loan safety perspective. Both investors and loan offering companies are highly interested in understanding what factors impact the borrower's ability to pay off the debt.
 
 ### Plot Two
 ```{r echo=FALSE, Plot_Two}
-
+ggplot(aes(StatedMonthlyIncome, MonthlyLoanPayment), data=df) +
+  geom_jitter(aes(color=LoanStatus),alpha=1) +
+  scale_x_continuous(limits = c(0.0, quantile(df$StatedMonthlyIncome, 0.99)),
+                     breaks = seq(0, 100000, 1000),
+                     labels=dollar_format(prefix="$")) +
+  scale_y_continuous(limits = c(0.0, quantile(df$MonthlyLoanPayment, 0.99)),
+                     breaks = seq(0, 1500, 100),
+                     labels=dollar_format(prefix="$")) +
+  guides(fill = guide_legend(override.aes= list(alpha = 1))) +
+  scale_color_manual(values=c("#539BBA", "#408B5C", "#C0BE59", "#C05E59", "#664081", "#9B4875", "#686977")) +
+  labs(title = "Stated Monthly Income, Monthly Loan Payment and Loan Status relation") +
+  xlab("Stated Monthly Income") +
+  ylab("Monthly Loan Payment") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(size=10),
+        axis.title.y = element_text(size=10),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
 ```
 
 ### Description Two
 
+In this plot, we can look closer at the stated monthly income, monthly loan payment and loan status. It is interesting to see a lot of charged-off and defaulted loans in the lower left corner of the plot - small monthly payment but a small income. It seems that borrowers with higher income can pay off the loan even if the monthly payment is larger, while borrowers with the low-income struggle to pay off the loan even if the monthly payment is low.
+
 
 ### Plot Three
 ```{r echo=FALSE, Plot_Three}
-
+ggplot(aes(LoanOriginalAmount, ProsperRating..Alpha.), data=df) +
+  geom_jitter(aes(color=LoanStatus),alpha=1) +
+  scale_x_continuous(breaks = seq(0, 50000, 2500),
+                     labels=dollar_format(prefix="$")) +
+  guides(fill = guide_legend(override.aes= list(alpha = 1))) +
+  scale_color_manual(values=c("#539BBA", "#408B5C", "#C0BE59", "#C05E59", "#664081", "#9B4875", "#686977")) +
+  labs(title = "Prosper Rating, Loan Original Amount and Loan Status relation") +
+  xlab("Loan Original Amount") +
+  ylab("Prosper Rating") +
+  theme(plot.title = element_text(size = 18),
+        axis.title.x = element_text(size=10),
+        axis.title.y = element_text(size=10),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        panel.grid.major.x = element_line(color="#d3d3d3", linetype = "dashed", size=0.5),
+        panel.grid.major.y = element_line(color="#d3d3d3", linetype = "dashed", size=0.5))
 ```
 
 ### Description Three
+
+In this plot, we can look closer at the prosper rating, loan original amount and loan status. We can see that most of the completed loans were loans with a small amount.  Most of the loans with a high amount are still active. In this plot, we can also clearly see a relation between prosper score and the amount of loan. Borrowers with a low score are granted smaller loans, while those with good rating bigger loans. High Rish and E category borrowers are almost never granted a loan above the \$10,000, while we can see that some of the AA, A and B category borrowers have loans above the \$25,000.
 
 ------
 
 # Reflection
 
-> **Tip**: Here's the final step! Reflect on the exploration you performed and
-the insights you found. What were some of the struggles that you went through?
-What went well? What was surprising? Make sure you include an insight into
-future work that could be done with the dataset.
-
-> **Tip**: Don't forget to remove this, and the other **Tip** sections before
-saving your final work and knitting the final report!
+I have tried to understand if employment status, loan amount, monthly loan payment and monthly income have a significant impact on the borrower's ability to pay off the loan.  The  main challenge I have faced with this dataset is that for lots of loans we did not have all information e.g. employment status, listening category was missing. This has significantly limited the investigation and ability do drive conclusions out of data. Gathering more data about the borrowers could help us understand better the relations between loan status and borrower's profile.
