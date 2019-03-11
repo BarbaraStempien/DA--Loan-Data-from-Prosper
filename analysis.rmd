@@ -16,7 +16,7 @@ knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='plots/',
                       echo=FALSE, warning=FALSE, message=FALSE)
 ```
 
-```{r packages}
+```{r}
 # Load packages
 library(ggplot2)
 library(repr)
@@ -31,14 +31,15 @@ library(scales)
 library(ggpubr)
 library(gridExtra)
 library(GGally)
+library(knitr)
 ```
 
-```{r Load_the_Data}
+```{r}
 # load the prosper loan dataset
 loan_dataset <- read.csv('data/prosperLoanData.csv', na.strings = c("", "NA"))
 ```
 
-```{r, Data Wrangling}
+```{r}
 
 # subset the dataframe to the following columns
 subset <- c("LoanStatus",
@@ -154,11 +155,11 @@ df$EmploymentStatus[is.na(df$EmploymentStatus)] <- "Not available"
 
 > We will begin the analysis by looking at the data contained in the data set.
 
-```{r echo=FALSE, View dataset}
+```{r}
 head(loan_dataset)
 ```
 
-```{r echo=FALSE, Summary}
+```{r}
 summary(df)
 ```
 
